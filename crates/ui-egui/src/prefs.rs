@@ -508,6 +508,10 @@ preference_settings! {
     /// the page would otherwise bring the offer back for every device.
     #[serde(deserialize_with = "devices_that_read")]
     space_mouse_offered: std::collections::BTreeSet<String> = Default::default();
+    /// Desktop: listen for MCP clients over Streamable HTTP on loopback. Off by default.
+    mcp_http_enabled: bool = false, PAGE_GENERAL;
+    /// Port for [`mcp_http_enabled`] (`127.0.0.1`).
+    mcp_http_port: u16 = 7879, PAGE_GENERAL;
     /// Anti-aliasing samples (applies on restart).
     msaa: u32 = 4, PAGE_GRAPHICS;
     /// Linux: the window system the app opens with at its next start (#3083): `auto` (XWayland
@@ -1029,6 +1033,46 @@ pub fn apply(app: &mut SolveApp, ctx: &egui::Context) {
     if z.is_finite() && !ctx.input(|i| i.pointer.any_down()) && (ctx.zoom_factor() - z).abs() > 1e-3 {
         ctx.set_zoom_factor(z);
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(sync) = app.mcp_http_sync.as_mut() {
+        app.mcp_http_status = sync(app.preferences.mcp_http_enabled, app.preferences.mcp_http_port);
+    }
+}
+
+/// Preferences ▸ General: start a loopback MCP HTTP server (desktop only).
+#[cfg(not(target_arch = "wasm32"))]
+pub(super) fn mcp_http_rows(app: &mut SolveApp, ui: &mut egui::Ui, labels: f32) {
+    ui_kit::settings_form(ui, labels, |ui| {
+        ui_kit::row(ui, app.tr("settings.mcp_http"), |ui| {
+            let enable = app.tr("settings.mcp_http_enable").to_string();
+            let r = ui.checkbox(&mut app.preferences.mcp_http_enabled, enable);
+            crate::scenario::publish_rect("prefs:mcp_http", r.rect);
+        });
+        ui_kit::row(ui, app.tr("settings.mcp_http_port"), |ui| {
+            let port = ui.add_enabled(
+                app.preferences.mcp_http_enabled,
+                egui::DragValue::new(&mut app.preferences.mcp_http_port).range(1..=65535).speed(1.0),
+            );
+            crate::scenario::publish_rect("prefs:mcp_http_port", port.rect);
+        });
+    });
+    let status = if let Some(err) = &app.mcp_http_status.error {
+        crate::i18n::format("settings.mcp_http_status_error", &[("error", err)])
+    } else if let Some(url) = &app.mcp_http_status.url {
+        crate::i18n::format("settings.mcp_http_status_on", &[("url", url)])
+    } else {
+        app.tr("settings.mcp_http_status_off").to_string()
+    };
+    ui_kit::text(ui, &status, ui_kit::Text::Hint("mcp_http_status"));
+    ui.add_enabled_ui(app.mcp_http_status.client_config.is_some(), |ui| {
+        if ui_kit::button(ui, app.tr("settings.mcp_http_copy_config"), ui_kit::Button::Normal).clicked()
+            && let Some(cfg) = &app.mcp_http_status.client_config
+        {
+            ui.ctx().copy_text(cfg.clone());
+            app.set_status(app.tr("settings.mcp_http_copied").to_string(), false);
+        }
+    });
+    ui_kit::text(ui, app.tr("settings.mcp_http_note"), ui_kit::Text::Hint("mcp_http_note"));
 }
 
 /// A new, empty design takes the preferred units (not an undo step, not a change to save).
@@ -2217,6 +2261,9 @@ pub fn set(app: &mut SolveApp, p: &serde_json::Value) -> Result<serde_json::Valu
     }
     if MiddleDoubleClick::parse(&new.middle_double_click).is_none() {
         return Err("`middle_double_click` must be home, fit or off".into());
+    }
+    if new.mcp_http_port == 0 {
+        return Err("`mcp_http_port` must be 1–65535".into());
     }
     if new.theme != app.preferences.theme && new.theme != "system" {
         app.ui.dark = file.map_or(new.theme == "dark", |f| f.base.is_dark());
