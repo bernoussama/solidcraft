@@ -162,6 +162,23 @@ pub fn listen_agent(tx: Sender<ControlRequest>, ctx: egui::Context) -> Option<u1
     listen_on_listener(listener, token, tx, ctx, true).map(|(port, _)| port)
 }
 
+/// A free loopback port with a fresh token, for an in-process MCP HTTP bridge. The token is
+/// also written to the usual control token file so `Remote` can find it.
+pub fn listen_private(tx: Sender<ControlRequest>, ctx: egui::Context) -> Option<(u16, String)> {
+    let Some(token) = server::new_token() else {
+        solidcraft_engine::note!("solidcraft: private control endpoint not started: no random token available");
+        return None;
+    };
+    let listener = match TcpListener::bind(("127.0.0.1", 0)) {
+        Ok(l) => l,
+        Err(e) => {
+            solidcraft_engine::note!("solidcraft: control server failed to bind 127.0.0.1: {e}");
+            return None;
+        }
+    };
+    listen_on_listener(listener, token.clone(), tx, ctx, true).map(|(port, _)| (port, token))
+}
+
 /// Serve `listener` (loopback) with `token`; the port it listens on and how to stop it.
 /// `patient`: every request may wait as long as a batch (a person decides on it).
 fn listen_on_listener(

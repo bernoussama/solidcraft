@@ -596,6 +596,19 @@ pub(crate) enum EscapeOwner {
     Overlay,
 }
 
+/// Desktop host hook: start or stop the in-process MCP HTTP server (`enabled`, `port`).
+#[cfg(not(target_arch = "wasm32"))]
+pub type McpHttpSync = Box<dyn FnMut(bool, u16) -> McpHttpStatus + Send>;
+
+/// What the Preferences MCP section shows: listen URL, a bind error, or the client config JSON.
+#[cfg(not(target_arch = "wasm32"))]
+#[derive(Clone, Debug, Default)]
+pub struct McpHttpStatus {
+    pub url: Option<String>,
+    pub error: Option<String>,
+    pub client_config: Option<String>,
+}
+
 /// The viewport's pipelines, compiled off the window's thread ([`SolveApp::build_wgpu_split`]) and
 /// waiting for [`SolveApp::adopt_wgpu`].
 pub struct WgpuBuilt {
@@ -863,6 +876,12 @@ pub struct SolveApp {
     /// A synthetic press is held: its drag never moves the real cursor (`navigation::wrap_cursor`).
     pub(crate) synthetic_press: bool,
     control_rx: Option<Receiver<ControlRequest>>,
+    /// Desktop host: start/stop the in-process MCP HTTP server from Preferences.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub mcp_http_sync: Option<McpHttpSync>,
+    /// Last status from [`SolveApp::mcp_http_sync`] (URL, bind error, client config JSON).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub mcp_http_status: McpHttpStatus,
     /// The app's control channel turned on and off from the settings ([`control_switch`]).
     pub control_switch: control_switch::ControlSwitch,
     /// Control requests that change the design, held while a file loads or an agent's design
@@ -1107,6 +1126,10 @@ impl SolveApp {
             held_click: Vec::new(),
             synthetic_press: false,
             control_rx: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            mcp_http_sync: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            mcp_http_status: McpHttpStatus::default(),
             control_switch: Default::default(),
             agent_chat: Default::default(),
             ai_connect: Default::default(),
@@ -1456,6 +1479,11 @@ impl SolveApp {
     pub fn with_control(mut self, rx: Receiver<ControlRequest>) -> Self {
         self.control_rx = Some(rx);
         self
+    }
+
+    /// Queue a control request from a private endpoint (the in-process MCP HTTP bridge).
+    pub fn push_control(&mut self, req: solidcraft_control::ControlRequest) {
+        self.control_held.push_back(req);
     }
 
     /// Run a command programmatically (JSON parameters, no dialogs).
