@@ -107,6 +107,8 @@ pub(super) fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
     ui_kit::settings_section(ui, "updates", app.tr("prefs.updates"), |ui| {
         ui_kit::settings_block(ui, app.tr("update.prefs_label"), labels, |ui| crate::update::prefs_rows(app, ui));
     });
+    #[cfg(not(target_arch = "wasm32"))]
+    ui_kit::settings_section(ui, "mcp_http", app.tr("settings.mcp_http"), |ui| mcp_http_rows(app, ui, labels));
 }
 
 /// Preferences › General › Largest file to open (#4086): the STEP/import and design file limits,

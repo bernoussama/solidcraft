@@ -1,0 +1,68 @@
+{
+  "en": {
+    "settings.mcp_http": "MCP server",
+    "settings.mcp_http_copied": "Copied client config",
+    "settings.mcp_http_copy_config": "Copy client config",
+    "settings.mcp_http_enable": "Listen for MCP clients over HTTP",
+    "settings.mcp_http_note": "Loopback only (127.0.0.1). Clients send Authorization: Bearer with the token in the mcp token file.",
+    "settings.mcp_http_port": "MCP HTTP port",
+    "settings.mcp_http_status_error": "Could not listen: {error}",
+    "settings.mcp_http_status_off": "Not listening",
+    "settings.mcp_http_status_on": "Listening at {url}"
+  },
+  "ar": {
+    "settings.mcp_http": "خادم MCP",
+    "settings.mcp_http_copied": "تم نسخ إعداد العميل",
+    "settings.mcp_http_copy_config": "نسخ إعداد العميل",
+    "settings.mcp_http_enable": "الاستماع لعملاء MCP عبر HTTP",
+    "settings.mcp_http_note": "الرجوع الحلقي فقط (127.0.0.1). يرسل العملاء Authorization: Bearer مع الرمز في ملف رمز mcp.",
+    "settings.mcp_http_port": "منفذ MCP عبر HTTP",
+    "settings.mcp_http_status_error": "تعذر الاستماع: {error}",
+    "settings.mcp_http_status_off": "لا يستمع",
+    "settings.mcp_http_status_on": "يستمع عند {url}"
+  },
+  "he": {
+    "settings.mcp_http": "שרת MCP",
+    "settings.mcp_http_copied": "תצורת הלקוח הועתקה",
+    "settings.mcp_http_copy_config": "העתקת תצורת לקוח",
+    "settings.mcp_http_enable": "האזנה ללקוחות MCP דרך HTTP",
+    "settings.mcp_http_note": "לולאה מקומית בלבד (127.0.0.1). הלקוחות שולחים Authorization: Bearer עם האסימון בקובץ האסימון של mcp.",
+    "settings.mcp_http_port": "פורט MCP ב-HTTP",
+    "settings.mcp_http_status_error": "לא ניתן להאזין: {error}",
+    "settings.mcp_http_status_off": "לא מאזין",
+    "settings.mcp_http_status_on": "מאזין ב-{url}"
+  },
+  "ja": {
+    "settings.mcp_http": "MCPサーバー",
+    "settings.mcp_http_copied": "クライアント設定をコピーしました",
+    "settings.mcp_http_copy_config": "クライアント設定をコピー",
+    "settings.mcp_http_enable": "HTTPでMCPクライアントを待ち受ける",
+    "settings.mcp_http_note": "ループバック（127.0.0.1）のみ。クライアントはmcpトークンファイルのBearerトークンを送ります。",
+    "settings.mcp_http_port": "MCP HTTPポート",
+    "settings.mcp_http_status_error": "待ち受けできません: {error}",
+    "settings.mcp_http_status_off": "待ち受けていません",
+    "settings.mcp_http_status_on": "{url} で待ち受け中"
+  },
+  "vi": {
+    "settings.mcp_http": "Máy chủ MCP",
+    "settings.mcp_http_copied": "Đã sao chép cấu hình máy khách",
+    "settings.mcp_http_copy_config": "Sao chép cấu hình máy khách",
+    "settings.mcp_http_enable": "Lắng nghe máy khách MCP qua HTTP",
+    "settings.mcp_http_note": "Chỉ loopback (127.0.0.1). Máy khách gửi Authorization: Bearer với token trong tệp token mcp.",
+    "settings.mcp_http_port": "Cổng MCP HTTP",
+    "settings.mcp_http_status_error": "Không thể lắng nghe: {error}",
+    "settings.mcp_http_status_off": "Không lắng nghe",
+    "settings.mcp_http_status_on": "Đang lắng nghe tại {url}"
+  },
+  "zh": {
+    "settings.mcp_http": "MCP 服务器",
+    "settings.mcp_http_copied": "已复制客户端配置",
+    "settings.mcp_http_copy_config": "复制客户端配置",
+    "settings.mcp_http_enable": "通过 HTTP 接受 MCP 客户端",
+    "settings.mcp_http_note": "仅本机回环（127.0.0.1）。客户端使用 mcp 令牌文件中的 Bearer 令牌。",
+    "settings.mcp_http_port": "MCP HTTP 端口",
+    "settings.mcp_http_status_error": "无法监听：{error}",
+    "settings.mcp_http_status_off": "未在监听",
+    "settings.mcp_http_status_on": "正在 {url} 监听"
+  }
+}
