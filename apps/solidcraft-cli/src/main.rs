@@ -11,8 +11,9 @@
 //! solidcraft-cli commands                                     the command registry as JSON
 //! solidcraft-cli recipe <recipe.json>                         translate an oracle recipe to a script
 //! solidcraft-cli oracle <case-dir>...                         replay recipes and compare with expected.json
-//! solidcraft-cli mcp [--in design|script] [--connect HOST:PORT [--token T]] [--allow-path DIR]... [--allow-any-path]
-//!                                                             MCP server on stdio (docs/mcp.md)
+//! solidcraft-cli mcp [--in design|script] [--connect HOST:PORT [--token T]] [--http 127.0.0.1:PORT]
+//!                    [--allow-path DIR]... [--allow-any-path]
+//!                                                             MCP server on stdio or Streamable HTTP (docs/mcp.md)
 //! solidcraft-cli licences                                     SolidCraft's licence and the third-party licences
 //! solidcraft-cli icon --out F.png|F.ico [--size N]             the app icon (packaging; drawn, not a file)
 //! ```
@@ -61,7 +62,7 @@ const USAGE: &str = "usage:
   solidcraft-cli recipe <recipe.json>
   solidcraft-cli oracle <case-dir>... [--json]
   solidcraft-cli fuzz [--from N] [--count N] [--jobs J] [--timeout S] [--steps N] [--minimise] [--out DIR] [--report FILE]
-  solidcraft-cli mcp [--in design.solidcraft|script.json] [--connect 127.0.0.1:PORT [--token T]] [--allow-path DIR]... [--allow-any-path]
+  solidcraft-cli mcp [--in design.solidcraft|script.json] [--connect 127.0.0.1:PORT [--token T]] [--http 127.0.0.1:PORT] [--allow-path DIR]... [--allow-any-path]
   solidcraft-cli crashes [list [--json] | show <id> | replay <id> | dir | clear [<id>]]
   solidcraft-cli licences
   solidcraft-cli gpu [--policy auto|hardware|software|cpu]
@@ -519,7 +520,7 @@ fn cmd_mcp(args: &[String]) -> Result<(), String> {
             eprintln!("solidcraft mcp: the design's folder is left out because {why}; add it with --allow-path if you mean it");
         }
     }
-    let backend: Box<dyn solidcraft_mcp::Backend> = match (flag(args, "--connect"), flag(args, "--in")) {
+    let backend_kind = match (flag(args, "--connect"), flag(args, "--in")) {
         (Some(_), Some(_)) => return Err("mcp: use either --connect or --in, not both".into()),
         (Some(addr), None) => {
             let Some(port) = addr.rsplit_once(':').and_then(|(_, p)| p.parse::<u16>().ok()).filter(|p| *p != 0) else {
@@ -533,14 +534,76 @@ fn cmd_mcp(args: &[String]) -> Result<(), String> {
                      (or SOLIDCRAFT_CONTROL_PORT={port}), tool calls connect once it runs"
                 );
             }
-            Box::new(remote)
+            McpBackend::Remote { addr: addr.to_string(), token: flag(args, "--token").map(str::to_string) }
         }
-        (None, Some(path)) => Box::new(solidcraft_mcp::Headless::new(load(path)?)),
-        (None, None) => Box::new(solidcraft_mcp::Headless::default()),
+        (None, Some(path)) => McpBackend::HeadlessPath(path.to_string()),
+        (None, None) => McpBackend::HeadlessEmpty,
     };
+    if let Some(http_addr) = flag(args, "--http") {
+        return serve_mcp_http(http_addr, backend_kind, scope);
+    }
+    let backend: Box<dyn solidcraft_mcp::Backend> = backend_kind.into_backend()?;
     let stdin = std::io::stdin();
     let stdout = std::io::stdout();
     solidcraft_mcp::Server::new(backend).with_path_scope(scope).serve(stdin.lock(), stdout.lock()).map_err(|e| e.to_string())
+}
+
+enum McpBackend {
+    Remote { addr: String, token: Option<String> },
+    HeadlessPath(String),
+    HeadlessEmpty,
+}
+
+impl McpBackend {
+    fn into_backend(self) -> Result<Box<dyn solidcraft_mcp::Backend>, String> {
+        Ok(match self {
+            Self::Remote { addr, token } => Box::new(solidcraft_mcp::Remote::new(&addr, token.as_deref())),
+            Self::HeadlessPath(path) => Box::new(solidcraft_mcp::Headless::new(load(&path)?)),
+            Self::HeadlessEmpty => Box::new(solidcraft_mcp::Headless::default()),
+        })
+    }
+}
+
+/// Streamable HTTP instead of stdio: loopback `POST /mcp`, Bearer token in the mcp token file.
+fn serve_mcp_http(http_addr: &str, backend: McpBackend, scope: Option<solidcraft_engine::io::vfs::PathScope>) -> Result<(), String> {
+    let Some((host, port_s)) = http_addr.rsplit_once(':') else {
+        return Err(format!("mcp: --http wants 127.0.0.1:PORT, not `{http_addr}`"));
+    };
+    if host != "127.0.0.1" {
+        return Err(format!("mcp: --http binds 127.0.0.1 only, not `{http_addr}`"));
+    }
+    let port: u16 = port_s.parse().map_err(|_| format!("mcp: --http wants 127.0.0.1:PORT, not `{http_addr}`"))?;
+    let token = solidcraft_engine::geom::env::var("MCP_TOKEN")
+        .filter(|t| t.len() >= solidcraft_engine::control_auth::MIN_TOKEN_LEN)
+        .or_else(solidcraft_mcp::new_token)
+        .ok_or_else(|| "mcp: no random token available for --http".to_string())?;
+    let factory = move || -> Box<dyn solidcraft_mcp::Backend> {
+        match &backend {
+            McpBackend::Remote { addr, token } => Box::new(solidcraft_mcp::Remote::new(addr, token.as_deref())),
+            McpBackend::HeadlessPath(path) => match load(path) {
+                Ok(s) => Box::new(solidcraft_mcp::Headless::new(s)),
+                Err(e) => {
+                    eprintln!("solidcraft mcp: --in {path}: {e}; using an empty design");
+                    Box::new(solidcraft_mcp::Headless::default())
+                }
+            },
+            McpBackend::HeadlessEmpty => Box::new(solidcraft_mcp::Headless::default()),
+        }
+    };
+    let handle = solidcraft_mcp::HttpServer::start_with_scope((host, port), token.clone(), factory, scope).map_err(|e| format!("mcp --http: {e}"))?;
+    let bound = handle.addr().port();
+    match solidcraft_mcp::write_token_file(bound, &token) {
+        Ok(path) => eprintln!("solidcraft mcp: Streamable HTTP on http://127.0.0.1:{bound}/mcp (token in {})", path.display()),
+        Err(e) => eprintln!(
+            "solidcraft mcp: Streamable HTTP on http://127.0.0.1:{bound}/mcp, but its token file could not be written ({e}); \
+             clients need SOLIDCRAFT_MCP_TOKEN"
+        ),
+    }
+    // Stay up until stdin closes (the MCP client dropping the process, or a test).
+    let mut buf = [0u8; 1];
+    let _ = std::io::Read::read(&mut std::io::stdin(), &mut buf);
+    handle.stop();
+    Ok(())
 }
 
 /// `save-stress <path> <rounds>`: save a design of a few hundred kilobytes `rounds` times, its
