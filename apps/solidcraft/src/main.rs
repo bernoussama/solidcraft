@@ -19,6 +19,7 @@
 #[path = "../../../assets/icons/app/shared/source/app_icon.rs"]
 mod app_icon;
 mod control_server;
+mod mcp_http;
 #[cfg(target_os = "windows")]
 mod native_crash;
 #[cfg(target_os = "windows")]
@@ -29,11 +30,14 @@ mod open_documents;
 mod space_mouse;
 mod startup;
 
+use std::sync::{Arc, Mutex};
+
 use solidcraft_engine::{Session, io};
-use solidcraft_ui_egui::{Services, SolveApp};
+use solidcraft_ui_egui::{McpHttpStatus, Services, SolveApp};
 
 struct App {
     solve: SolveApp,
+    mcp_http: Arc<Mutex<mcp_http::Service>>,
     /// The settings folder whose start marker the first frame clears (`startup::started`).
     starting: Option<std::path::PathBuf>,
     /// Frames begun; the second one means the first was drawn (startup is over).
@@ -67,6 +71,9 @@ impl eframe::App for App {
         for f in if self.solve.file_picker_busy() { Vec::new() } else { open_documents::take() } {
             self.solve.open_path_async(&f);
         }
+        if let Ok(mut mcp) = self.mcp_http.lock() {
+            mcp.pump(&mut self.solve);
+        }
         self.solve.logic(ctx);
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
         if !self.solve.file_picker_busy() {
@@ -89,6 +96,9 @@ impl eframe::App for App {
         storage.set_string(solidcraft_ui_egui::prefs::STORAGE_KEY, self.solve.prefs());
     }
     fn on_exit(&mut self) {
+        if let Ok(mut mcp) = self.mcp_http.lock() {
+            mcp.shutdown();
+        }
         // The agent chat's agent and everything it started end with the app.
         solidcraft_ui_egui::agent_chat::shutdown(&mut self.solve);
         solidcraft_ui_egui::recovery_ui::close(&mut self.solve);
@@ -674,8 +684,17 @@ fn main() -> eframe::Result {
             #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
             let space_mouse = space_mouse::SpaceMouse::start(&cc.egui_ctx);
             solidcraft_engine::crash::phase("first frame");
+            let mcp_http = Arc::new(Mutex::new(mcp_http::Service::new(cc.egui_ctx.clone())));
+            {
+                let mcp = mcp_http.clone();
+                app.mcp_http_sync = Some(Box::new(move |enabled, port| match mcp.lock() {
+                    Ok(mut s) => s.sync(enabled, port),
+                    Err(_) => McpHttpStatus { error: Some("MCP server lock poisoned".into()), ..McpHttpStatus::default() },
+                }));
+            }
             Ok(Box::new(App {
                 solve: app,
+                mcp_http,
                 starting,
                 frames: 0,
                 #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]

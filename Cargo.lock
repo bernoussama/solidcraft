@@ -4100,6 +4100,7 @@ dependencies = [
  "serde_json",
  "solidcraft-3dx-client",
  "solidcraft-engine",
+ "solidcraft-mcp",
  "solidcraft-space-mouse",
  "solidcraft-ui-egui",
  "ureq",
@@ -4235,6 +4236,7 @@ dependencies = [
 name = "solidcraft-mcp"
 version = "0.16.2"
 dependencies = [
+ "getrandom 0.3.4",
  "serde_json",
  "solidcraft-engine",
  "solidcraft-gpu",

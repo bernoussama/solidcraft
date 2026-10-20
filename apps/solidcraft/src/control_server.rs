@@ -55,11 +55,17 @@ pub fn start(port: u16, ctx: egui::Context) -> Receiver<ControlRequest> {
 /// token file, where the MCP server finds it, so the token never passes through the agent. Its
 /// requests go to `tx`, where the chat's gate reads them; one may wait long for the user's Allow.
 pub fn listen_agent(tx: Sender<ControlRequest>, ctx: egui::Context) -> Option<u16> {
+    listen_private(tx, ctx).map(|(port, _)| port)
+}
+
+/// A free loopback port with a fresh token, for an in-process MCP HTTP bridge. The token is
+/// also written to the usual control token file so `Remote` can find it.
+pub fn listen_private(tx: Sender<ControlRequest>, ctx: egui::Context) -> Option<(u16, String)> {
     let Some(token) = new_token() else {
-        eprintln!("solidcraft: agent chat endpoint not started: no random token available");
+        eprintln!("solidcraft: private control endpoint not started: no random token available");
         return None;
     };
-    listen(0, token, tx, ctx, true)
+    listen(0, token.clone(), tx, ctx, true).map(|port| (port, token))
 }
 
 /// Listen on `port` (0: a free port the system picks) with `token`; the port it listens on.
