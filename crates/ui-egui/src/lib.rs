@@ -507,6 +507,18 @@ pub(crate) enum EscapeOwner {
     Overlay,
 }
 
+/// Desktop host hook: start or stop the in-process MCP HTTP server (`enabled`, `port`).
+#[cfg(not(target_arch = "wasm32"))]
+pub type McpHttpSync = Box<dyn FnMut(bool, u16) -> McpHttpStatus + Send>;
+
+/// What the Preferences MCP section shows: listen URL, a bind error, or the client config JSON.
+#[derive(Clone, Debug, Default)]
+pub struct McpHttpStatus {
+    pub url: Option<String>,
+    pub error: Option<String>,
+    pub client_config: Option<String>,
+}
+
 pub struct SolveApp {
     pub blur: blur::State,
     pub(crate) viewport_status: ui_kit::StatusPresentation,
@@ -717,6 +729,12 @@ pub struct SolveApp {
     control_job: Option<control_job::ControlJob>,
     /// Agent exports computing on copies of the design.
     control_answering: Vec<control_job::ControlJob>,
+    /// Desktop host: start/stop the in-process MCP HTTP server from Preferences.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub mcp_http_sync: Option<McpHttpSync>,
+    /// Last status from [`SolveApp::mcp_http_sync`] (URL, bind error, client config JSON).
+    #[cfg(not(target_arch = "wasm32"))]
+    pub mcp_http_status: McpHttpStatus,
     /// The agent cursor acting out control requests.
     pub agent: agent_cursor::AgentCursor,
     /// The agent chat panel (docs/design/in-app-agent-chat.md).
@@ -885,6 +903,10 @@ impl SolveApp {
             synthetic: Vec::new(),
             synthetic_mods: egui::Modifiers::default(),
             control_rx: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            mcp_http_sync: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            mcp_http_status: McpHttpStatus::default(),
             agent_chat: Default::default(),
             ai_connect: Default::default(),
             control_held: Default::default(),
@@ -1151,6 +1173,11 @@ impl SolveApp {
     pub fn with_control(mut self, rx: Receiver<ControlRequest>) -> Self {
         self.control_rx = Some(rx);
         self
+    }
+
+    /// Queue a control request for the next [`SolveApp::logic`] drain (in-process MCP HTTP).
+    pub fn push_control(&mut self, req: ControlRequest) {
+        self.control_held.push_back(req);
     }
 
     /// Run a command programmatically (JSON parameters, no dialogs).
