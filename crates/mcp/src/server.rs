@@ -118,29 +118,9 @@ impl Server {
         Ok(())
     }
 
-    /// One line in, at most one line out (notifications get no reply).
-    pub fn handle_line(&mut self, line: &str) -> Option<String> {
-        // Check the raw input before trimming: a huge whitespace prefix is still a huge line.
-        if line.len() > MAX_LINE {
-            return Some(error(Value::Null, INVALID_REQUEST, "request too large").to_string());
-        }
-        let line = line.trim();
-        if line.is_empty() {
-            return None;
-        }
-        let reply = match serde_json::from_str::<Value>(line) {
-            Ok(Value::Array(batch)) if batch.is_empty() => Some(error(Value::Null, INVALID_REQUEST, "empty batch")),
-            Ok(Value::Array(batch)) if batch.len() > MAX_BATCH => Some(error(Value::Null, INVALID_REQUEST, "batch too large")),
-            Ok(Value::Array(batch)) => {
-                let replies: Vec<Value> = batch.into_iter().filter_map(|m| self.handle(m)).collect();
-                (!replies.is_empty()).then_some(Value::Array(replies))
-            }
-            Ok(msg) => self.handle(msg),
-            Err(e) => Some(error(Value::Null, PARSE_ERROR, format!("parse error: {e}"))),
-        };
-        reply.map(|r| r.to_string())
-    }
-
+    /// One JSON-RPC message (an object) in. Notifications and stray responses get no reply, so
+    /// HTTP and stdio share this: a transport maps `None` to "no body" (202 on streamable HTTP).
+    /// A JSON-RPC batch is an array: walk it with [`handle`] and collect the replies.
     pub fn handle(&mut self, msg: Value) -> Option<Value> {
         let Value::Object(o) = &msg else { return Some(error(Value::Null, INVALID_REQUEST, "message must be an object")) };
         let id = o.get("id").cloned();
@@ -162,6 +142,29 @@ impl Server {
             Ok(r) => response(id, r),
             Err((code, m)) => error(id, code, m),
         })
+    }
+
+    /// One line in, at most one line out (notifications get no reply).
+    pub fn handle_line(&mut self, line: &str) -> Option<String> {
+        // Check the raw input before trimming: a huge whitespace prefix is still a huge line.
+        if line.len() > MAX_LINE {
+            return Some(error(Value::Null, INVALID_REQUEST, "request too large").to_string());
+        }
+        let line = line.trim();
+        if line.is_empty() {
+            return None;
+        }
+        let reply = match serde_json::from_str::<Value>(line) {
+            Ok(Value::Array(batch)) if batch.is_empty() => Some(error(Value::Null, INVALID_REQUEST, "empty batch")),
+            Ok(Value::Array(batch)) if batch.len() > MAX_BATCH => Some(error(Value::Null, INVALID_REQUEST, "batch too large")),
+            Ok(Value::Array(batch)) => {
+                let replies: Vec<Value> = batch.into_iter().filter_map(|m| self.handle(m)).collect();
+                (!replies.is_empty()).then_some(Value::Array(replies))
+            }
+            Ok(msg) => self.handle(msg),
+            Err(e) => Some(error(Value::Null, PARSE_ERROR, format!("parse error: {e}"))),
+        };
+        reply.map(|r| r.to_string())
     }
 
     fn request(&mut self, method: &str, params: &Value) -> Result<Value, (i64, String)> {
