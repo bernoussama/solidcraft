@@ -48,6 +48,25 @@ fn tool(s: &mut Server, name: &str, args: Value) -> Value {
     if c["type"] == "text" { serde_json::from_str(c["text"].as_str().unwrap()).unwrap_or(Value::Null) } else { c.clone() }
 }
 
+/// `Server::handle` is the transport-neutral entry: a JSON-RPC batch is walked message by
+/// message, and a notification has no reply (stdio writes nothing; HTTP answers 202).
+#[test]
+fn handle_a_batch_and_a_notification() {
+    let mut s = server();
+    assert!(s.handle(json!({"jsonrpc": "2.0", "method": "notifications/initialized"})).is_none());
+    assert!(s.is_initialized());
+    let batch = [
+        json!({"jsonrpc": "2.0", "id": 1, "method": "ping"}),
+        json!({"jsonrpc": "2.0", "method": "notifications/x"}),
+        json!({"jsonrpc": "2.0", "id": 2, "method": "ping"}),
+    ];
+    let replies: Vec<Value> = batch.into_iter().filter_map(|m| s.handle(m)).collect();
+    assert_eq!(replies.len(), 2, "{replies:?}");
+    assert_eq!(replies[0]["id"], 1);
+    assert_eq!(replies[1]["id"], 2);
+    assert_eq!(replies[0]["result"], json!({}));
+}
+
 #[test]
 fn crash_reports_are_listed_and_read_without_changing_the_design() {
     let mut s = server();
