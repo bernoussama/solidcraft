@@ -22,6 +22,7 @@
 mod app_icon;
 mod control_server;
 mod device_lost;
+mod mcp_http;
 #[cfg(target_os = "windows")]
 mod native_crash;
 #[cfg(target_os = "windows")]
@@ -36,8 +37,10 @@ mod startup;
 #[cfg(any(target_os = "windows", test))]
 mod window_fit;
 
+use std::sync::{Arc, Mutex};
+
 use solidcraft_engine::{Session, io};
-use solidcraft_ui_egui::{Services, SolveApp};
+use solidcraft_ui_egui::{McpHttpStatus, Services, SolveApp};
 
 /// Windows: put the restored window back inside the monitor's work area if it is out of reach
 /// (a gone monitor, another scale, a taskbar edge). Sizes are in points, the work area in pixels.
@@ -75,6 +78,7 @@ fn mark(step: &str) {
 
 struct App {
     solve: SolveApp,
+    mcp_http: Arc<Mutex<mcp_http::Service>>,
     /// The settings folder whose start marker the first frame clears (`startup::started`).
     starting: Option<std::path::PathBuf>,
     /// Frames begun; the second one means the first was drawn (startup is over).
@@ -140,6 +144,9 @@ impl eframe::App for App {
         if let Some(menu) = &mut self.native_menu {
             menu.tick(&mut self.solve, ctx);
         }
+        if let Ok(mut mcp) = self.mcp_http.lock() {
+            mcp.pump(&mut self.solve);
+        }
         self.solve.logic(ctx);
         #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
         if !self.solve.file_picker_busy() {
@@ -171,6 +178,9 @@ impl eframe::App for App {
         storage.set_string(solidcraft_ui_egui::prefs::STORAGE_KEY, self.solve.prefs());
     }
     fn on_exit(&mut self) {
+        if let Ok(mut mcp) = self.mcp_http.lock() {
+            mcp.shutdown();
+        }
         // The agent chat's agent and everything it started end with the app.
         solidcraft_ui_egui::agent_chat::shutdown(&mut self.solve);
         // A save still being written ends before the app does.
@@ -905,8 +915,17 @@ fn main() -> eframe::Result {
             }
             mark("app created");
             solidcraft_engine::crash::phase("first frame");
+            let mcp_http = Arc::new(Mutex::new(mcp_http::Service::new(cc.egui_ctx.clone())));
+            {
+                let mcp = mcp_http.clone();
+                app.mcp_http_sync = Some(Box::new(move |enabled, port| match mcp.lock() {
+                    Ok(mut s) => s.sync(enabled, port),
+                    Err(_) => McpHttpStatus { error: Some("MCP server lock poisoned".into()), ..McpHttpStatus::default() },
+                }));
+            }
             Ok(Box::new(App {
                 solve: app,
+                mcp_http,
                 starting,
                 frames: 0,
                 take_focus_unwanted: control_port.is_some(),
