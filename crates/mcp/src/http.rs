@@ -488,13 +488,8 @@ fn write_response(mut writer: &TcpStream, status: u16, extra: &[(&str, &str)], b
         504 => "Gateway Timeout",
         _ => "Error",
     };
-    let ctype = if extra.iter().any(|(k, _)| *k == "Mcp-Session-Id") && status == 200 && !body.is_empty() {
-        "application/json"
-    } else if status == 200 && !body.is_empty() && body.first().is_some_and(|b| *b == b'{' || *b == b'[') {
-        "application/json"
-    } else {
-        "text/plain; charset=utf-8"
-    };
+    let json = status == 200 && body.first().is_some_and(|b| *b == b'{' || *b == b'[');
+    let ctype = if json { "application/json" } else { "text/plain; charset=utf-8" };
     let mut out = format!("HTTP/1.1 {status} {reason}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n", body.len());
     for (k, v) in extra {
         out.push_str(k);
