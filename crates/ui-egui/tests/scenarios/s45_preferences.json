@@ -1,8 +1,9 @@
 [
   {"note": "#36: one Preferences dialog, from the gear at the top right (and Ctrl+,). Changes apply at once; Cancel puts them back, OK keeps them."},
   {"click": {"handle": "titlebar:preferences"}},
-  {"expect": {"shown": "Restore page defaults", "prefs": {"dialog": "General", "theme": "dark", "dark": true}}},
+  {"expect": {"shown": "Restore page defaults", "prefs": {"dialog": "General", "theme": "dark", "dark": true, "mcp_http_enabled": false, "mcp_http_port": 7879}}},
   {"expect": {"shown": "Profiles"}},
+  {"expect": {"shown": "Listen for MCP clients over HTTP"}},
   {"widget": "Reopen the designs that were open last time"},
   {"expect": {"prefs": {"reopen_designs": false}}},
   {"click": {"handle": "prefs:page:Appearance"}},

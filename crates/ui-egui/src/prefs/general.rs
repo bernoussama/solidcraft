@@ -171,6 +171,8 @@ pub(super) fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
         ui_kit::settings_section(ui, "updates", app.tr("prefs.updates"), |ui| {
             crate::update::prefs_rows(app, ui);
         });
+        #[cfg(not(target_arch = "wasm32"))]
+        mcp_http_section(app, ui, labels);
         ui_kit::settings_section(ui, "crash_reports", app.tr("prefs.general.crash_reports"), |ui| {
             ui.horizontal(|ui| {
                 let count = app.crashes.saved_count();
@@ -186,6 +188,44 @@ pub(super) fn show(app: &mut SolveApp, ui: &mut egui::Ui) {
                 }
             });
         });
+    });
+}
+
+/// Preferences ▸ General: start a loopback MCP HTTP server (desktop only).
+#[cfg(not(target_arch = "wasm32"))]
+fn mcp_http_section(app: &mut SolveApp, ui: &mut egui::Ui, labels: f32) {
+    ui_kit::settings_section(ui, "mcp_http", app.tr("settings.mcp_http"), |ui| {
+        ui_kit::settings_form(ui, labels, |ui| {
+            ui_kit::row(ui, app.tr("settings.mcp_http"), |ui| {
+                let enable = app.tr("settings.mcp_http_enable").to_string();
+                let r = ui_kit::checkbox(ui, &enable, &mut app.preferences.mcp_http_enabled);
+                crate::scenario::publish_rect("prefs:mcp_http", r.rect);
+            });
+            ui_kit::row(ui, app.tr("settings.mcp_http_port"), |ui| {
+                let enabled = app.preferences.mcp_http_enabled;
+                let port = ui
+                    .add_enabled_ui(enabled, |ui| ui_kit::settings_number(ui, &mut app.preferences.mcp_http_port, 1..=65535, 1.0))
+                    .inner;
+                crate::scenario::publish_rect("prefs:mcp_http_port", port.rect);
+            });
+        });
+        let status = if let Some(err) = &app.mcp_http_status.error {
+            solidcraft_ui_text::format("settings.mcp_http_status_error", &[("error", err)])
+        } else if let Some(url) = &app.mcp_http_status.url {
+            solidcraft_ui_text::format("settings.mcp_http_status_on", &[("url", url)])
+        } else {
+            app.tr("settings.mcp_http_status_off").to_string()
+        };
+        ui_kit::text(ui, &status, ui_kit::Text::Hint("mcp_http_status"));
+        ui.add_enabled_ui(app.mcp_http_status.client_config.is_some(), |ui| {
+            if ui_kit::button(ui, app.tr("settings.mcp_http_copy_config"), ui_kit::Button::Normal).clicked()
+                && let Some(cfg) = &app.mcp_http_status.client_config
+            {
+                ui.ctx().copy_text(cfg.clone());
+                app.set_status(app.tr("settings.mcp_http_copied").to_string(), false);
+            }
+        });
+        ui_kit::text(ui, app.tr("settings.mcp_http_note"), ui_kit::Text::Hint("mcp_http_note"));
     });
 }
 

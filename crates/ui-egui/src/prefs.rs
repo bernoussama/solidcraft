@@ -1322,6 +1322,10 @@ preference_settings! {
     max_step_file_mb: u64 = DEFAULT_STEP_MB, PAGE_GENERAL;
     /// The largest design file opened or saved, in MB (#4086): from the default (256) up to 16 GB.
     max_design_file_mb: u64 = DEFAULT_DESIGN_MB, PAGE_GENERAL;
+    /// Desktop: listen for MCP clients over Streamable HTTP on loopback. Off by default.
+    mcp_http_enabled: bool = false, PAGE_GENERAL;
+    /// Port for [`mcp_http_enabled`] (`127.0.0.1`).
+    mcp_http_port: u16 = 7879, PAGE_GENERAL;
     /// A FreeCAD file opens or inserts as its sketches and features, rebuilt; off brings in only
     /// its solids as one Import feature, as before.
     freecad_history: bool = true, PAGE_GENERAL => check_id("settings.freecad_history");
@@ -2592,6 +2596,10 @@ pub fn apply(app: &mut SolveApp, ctx: &egui::Context) {
     let z = app.preferences.ui_scale.clamp(0.5, 2.5);
     if z.is_finite() && !ctx.input(|i| i.pointer.any_down()) && (ctx.zoom_factor() - z).abs() > 1e-3 {
         ctx.set_zoom_factor(z);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(sync) = app.mcp_http_sync.as_mut() {
+        app.mcp_http_status = sync(app.preferences.mcp_http_enabled, app.preferences.mcp_http_port);
     }
 }
 
@@ -4589,6 +4597,9 @@ fn prepare_preferences(
     let mut new = new;
     for grants in new.plugin_grants.values_mut() {
         grants.folders.sort_by(|a, b| a.name.cmp(&b.name));
+    }
+    if new.mcp_http_port == 0 {
+        return Err("`mcp_http_port` must be 1–65535".into());
     }
     Ok(new)
 }
