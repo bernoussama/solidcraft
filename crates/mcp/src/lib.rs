@@ -1,20 +1,24 @@
 //! SolidCraft MCP server.
 //!
-//! JSON-RPC 2.0 over stdio (newline-delimited), implementing the MCP lifecycle, tools and
-//! resources. Tools map onto the control-channel methods (`engine.execute`, `document.inspect`,
-//! `ui.render`…, see `docs/control-protocol.md`), served either by an in-process headless
-//! [`Headless`] session or by a running app through its loopback control port ([`Remote`]), so a
-//! person can watch the agent model. Every modelling step is an engine command; tools never open
-//! dialogs.
+//! JSON-RPC 2.0 over stdio (newline-delimited) or Streamable HTTP (`POST /mcp` on loopback,
+//! feature `http`, native only), implementing the MCP lifecycle, tools and resources. Tools map
+//! onto the control-channel methods (`engine.execute`, `document.inspect`, `ui.render`…, see
+//! `docs/control-protocol.md`), served either by an in-process headless [`Headless`] session or
+//! by a running app through its loopback control port ([`Remote`]), so a person can watch the
+//! agent model. Every modelling step is an engine command; tools never open dialogs.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 #![forbid(unsafe_code)]
 
 mod backend;
+#[cfg(all(feature = "http", not(target_arch = "wasm32")))]
+mod http;
 mod server;
 mod skill_reference;
 mod tools;
 
 pub use backend::{Auto, Backend, Headless, Remote};
+#[cfg(all(feature = "http", not(target_arch = "wasm32")))]
+pub use http::{Handle as HttpHandle, HttpServer, client_config_json, new_token, token_path, write_token_file};
 pub use server::{PROTOCOL_VERSION, SUPPORTED_VERSIONS, Server};
 pub use tools::{call_tool, tool_definitions};
 

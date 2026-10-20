@@ -8,9 +8,17 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = ["http"]
+# Streamable HTTP transport (`src/http.rs`). Compiled only for native targets.
+http = []
+
 [dependencies]
 solidcraft-engine = { workspace = true }
 serde_json = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+getrandom = "0.3"
 
 [dev-dependencies]
 # The renderer `solidcraft-cli mcp` installs, so the tests' screenshots are drawn as the server's.
