@@ -279,6 +279,10 @@ pub struct Prefs {
     pub space_mouse_reverse: [bool; 6],
     /// Per physical axis of the cap, a multiplier on top of `space_mouse_speed`; 0 switches it off.
     pub space_mouse_axis_speed: [f32; 6],
+    /// Desktop: listen for MCP clients over Streamable HTTP on loopback. Off by default.
+    pub mcp_http_enabled: bool,
+    /// Port for [`mcp_http_enabled`] (`127.0.0.1`).
+    pub mcp_http_port: u16,
     /// Anti-aliasing samples (applies on restart).
     pub msaa: u32,
     /// The grid turns to the upright origin plane facing a side view (#1470). Off by default: the
@@ -423,6 +427,8 @@ impl Default for Prefs {
             space_mouse_speed: 1.0,
             space_mouse_reverse: [false; 6],
             space_mouse_axis_speed: [1.0; 6],
+            mcp_http_enabled: false,
+            mcp_http_port: 7879,
             msaa: 4,
             grid_follows_view: false,
             display_quality: "normal".into(),
@@ -699,6 +705,8 @@ fn defaults(app: &mut SolveApp, page: usize) {
             p.length_decimals = d.length_decimals;
             p.angle_decimals = d.angle_decimals;
             p.check_updates = d.check_updates;
+            p.mcp_http_enabled = d.mcp_http_enabled;
+            p.mcp_http_port = d.mcp_http_port;
             app.ui.dark = true;
             app.ui.agent_cursor = Default::default();
             app.autosave_minutes = 5.0;
@@ -808,6 +816,48 @@ pub fn apply(app: &mut SolveApp, ctx: &egui::Context) {
     if z.is_finite() && !ctx.input(|i| i.pointer.any_down()) && (ctx.zoom_factor() - z).abs() > 1e-3 {
         ctx.set_zoom_factor(z);
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    if let Some(sync) = app.mcp_http_sync.as_mut() {
+        app.mcp_http_status = sync(app.preferences.mcp_http_enabled, app.preferences.mcp_http_port);
+    }
+}
+
+/// Preferences ▸ General: start a loopback MCP HTTP server (desktop only).
+#[cfg(not(target_arch = "wasm32"))]
+fn mcp_http_rows(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
+    ui.label(app.tr("settings.mcp_http"));
+    let enable = app.tr("settings.mcp_http_enable").to_string();
+    let r = ui.checkbox(&mut app.preferences.mcp_http_enabled, enable);
+    crate::scenario::publish_rect("prefs:mcp_http", r.rect);
+    ui.end_row();
+    ui.label(app.tr("settings.mcp_http_port"));
+    let port = ui.add_enabled(app.preferences.mcp_http_enabled, egui::DragValue::new(&mut app.preferences.mcp_http_port).range(1..=65535).speed(1.0));
+    crate::scenario::publish_rect("prefs:mcp_http_port", port.rect);
+    ui.end_row();
+    ui.label("");
+    let status = if let Some(err) = &app.mcp_http_status.error {
+        crate::i18n::format("settings.mcp_http_status_error", &[("error", err)])
+    } else if let Some(url) = &app.mcp_http_status.url {
+        crate::i18n::format("settings.mcp_http_status_on", &[("url", url)])
+    } else {
+        app.tr("settings.mcp_http_status_off").to_string()
+    };
+    ui.label(egui::RichText::new(status).size(11.0).color(t.text_dim));
+    ui.end_row();
+    ui.label("");
+    ui.horizontal(|ui| {
+        let can = app.mcp_http_status.client_config.is_some();
+        if ui.add_enabled(can, egui::Button::new(app.tr("settings.mcp_http_copy_config"))).clicked()
+            && let Some(cfg) = &app.mcp_http_status.client_config
+        {
+            ui.ctx().copy_text(cfg.clone());
+            app.set_status(app.tr("settings.mcp_http_copied").to_string(), false);
+        }
+    });
+    ui.end_row();
+    ui.label("");
+    ui.add(egui::Label::new(egui::RichText::new(app.tr("settings.mcp_http_note")).size(11.0).color(t.text_dim)).wrap());
+    ui.end_row();
 }
 
 /// A new, empty design takes the preferred units (not an undo step, not a change to save).
@@ -1223,6 +1273,8 @@ fn page(app: &mut SolveApp, ui: &mut egui::Ui, t: &Tokens) {
             ui.add_enabled(s.show, egui::Checkbox::new(&mut s.follow_camera, crate::i18n::tr_label("Follow the camera (Look At sketches)")));
             ui.end_row();
             crate::update::prefs_rows(app, ui, t);
+            #[cfg(not(target_arch = "wasm32"))]
+            mcp_http_rows(app, ui, t);
         }
         1 => {
             ui.label(app.tr_label("Pan, zoom, orbit"));
@@ -1731,6 +1783,9 @@ pub fn set(app: &mut SolveApp, p: &serde_json::Value) -> Result<serde_json::Valu
     }
     if MiddleDoubleClick::parse(&new.middle_double_click).is_none() {
         return Err("`middle_double_click` must be home, fit or off".into());
+    }
+    if new.mcp_http_port == 0 {
+        return Err("`mcp_http_port` must be 1–65535".into());
     }
     if new.theme != app.preferences.theme && new.theme != "system" {
         app.ui.dark = file.map_or(new.theme == "dark", |f| f.base.is_dark());
