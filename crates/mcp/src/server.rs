@@ -296,6 +296,9 @@ impl Server {
     pub fn handle_line(&mut self, line: &str) -> Option<String> {
         self.inner.handle_line(line)
     }
+    /// One JSON-RPC message in. Notifications and stray responses get no reply, so HTTP and stdio
+    /// share this: a transport maps `None` to "no body" (202 on streamable HTTP). A JSON-RPC batch
+    /// is an array: walk it with [`Self::handle`] and collect the replies.
     pub fn handle(&mut self, msg: Value) -> Option<Value> {
         self.inner.handle(msg)
     }
