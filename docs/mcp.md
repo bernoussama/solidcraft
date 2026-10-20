@@ -1,7 +1,8 @@
 # SolidCraft and AI agents (MCP)
 
 SolidCraft speaks the [Model Context Protocol](https://modelcontextprotocol.io) over stdio
-(JSON-RPC 2.0, one message per line; protocol revisions 2025-06-18, 2025-03-26 and 2024-11-05).
+(JSON-RPC 2.0, one message per line; protocol revisions 2025-06-18, 2025-03-26 and 2024-11-05)
+and over Streamable HTTP on loopback (`POST /mcp`).
 An agent models exactly like a person does: every tool runs engine commands, the same ones the
 toolbar, palette, scripts and control channel use, and never opens a dialog.
 
@@ -32,6 +33,34 @@ solidcraft-cli mcp          # finds the running app; headless when none runs (--
 # A fixed port, or a second app: name it.
 solidcraft --control 7878 &
 solidcraft-cli mcp --connect 127.0.0.1:7878
+
+# Streamable HTTP on loopback (Bearer token in ~/.local/share/solidcraft/mcp/PORT.token)
+solidcraft-cli mcp --http 127.0.0.1:7879
+```
+
+## MCP over HTTP
+
+The same JSON-RPC methods as stdio, served as [Streamable HTTP](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#streamable-http) on `127.0.0.1` only:
+
+```sh
+solidcraft-cli mcp --http 127.0.0.1:7879
+```
+
+In the desktop app, Preferences ▸ General ▸ **Listen for MCP clients over HTTP** starts the same server in-process (default port 7879). Each MCP session drives the open design through a private control endpoint, so a `tools/call` that changes the design is visible in the window.
+
+`POST /mcp` takes one JSON-RPC message or a batch (`Content-Type: application/json`). Notifications (no `id`) get `202`. `GET` is `405` (this server does not stream SSE). `DELETE` ends the session named in `Mcp-Session-Id`. The first `initialize` issues `Mcp-Session-Id`; later requests send that header. Clients must send `Authorization: Bearer <token>` (the token file is mode `0600`) and a loopback `Host`; a foreign `Origin` is refused (`403`) so a browser page cannot DNS-rebinding-attack the port.
+
+Example client config (the Preferences **Copy client config** button writes this, with the live token):
+
+```json
+{
+  "mcpServers": {
+    "solidcraft": {
+      "url": "http://127.0.0.1:7879/mcp",
+      "headers": { "Authorization": "Bearer <token from ~/.local/share/solidcraft/mcp/7879.token>" }
+    }
+  }
+}
 ```
 
 ### The app listens by default
