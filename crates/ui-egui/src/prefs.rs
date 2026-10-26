@@ -1049,10 +1049,8 @@ pub(super) fn mcp_http_rows(app: &mut SolveApp, ui: &mut egui::Ui, labels: f32) 
             crate::scenario::publish_rect("prefs:mcp_http", r.rect);
         });
         ui_kit::row(ui, app.tr("settings.mcp_http_port"), |ui| {
-            let port = ui.add_enabled(
-                app.preferences.mcp_http_enabled,
-                egui::DragValue::new(&mut app.preferences.mcp_http_port).range(1..=65535).speed(1.0),
-            );
+            let port = ui
+                .add_enabled(app.preferences.mcp_http_enabled, egui::DragValue::new(&mut app.preferences.mcp_http_port).range(1..=65535).speed(1.0));
             crate::scenario::publish_rect("prefs:mcp_http_port", port.rect);
         });
     });
