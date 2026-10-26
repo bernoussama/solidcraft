@@ -1045,12 +1045,12 @@ pub(super) fn mcp_http_rows(app: &mut SolveApp, ui: &mut egui::Ui, labels: f32) 
     ui_kit::settings_form(ui, labels, |ui| {
         ui_kit::row(ui, app.tr("settings.mcp_http"), |ui| {
             let enable = app.tr("settings.mcp_http_enable").to_string();
-            let r = ui.checkbox(&mut app.preferences.mcp_http_enabled, enable);
+            let r = ui_kit::checkbox(ui, &enable, &mut app.preferences.mcp_http_enabled);
             crate::scenario::publish_rect("prefs:mcp_http", r.rect);
         });
         ui_kit::row(ui, app.tr("settings.mcp_http_port"), |ui| {
-            let port = ui
-                .add_enabled(app.preferences.mcp_http_enabled, egui::DragValue::new(&mut app.preferences.mcp_http_port).range(1..=65535).speed(1.0));
+            let enabled = app.preferences.mcp_http_enabled;
+            let port = ui.add_enabled_ui(enabled, |ui| ui_kit::settings_number(ui, &mut app.preferences.mcp_http_port, 1..=65535, 1.0)).inner;
             crate::scenario::publish_rect("prefs:mcp_http_port", port.rect);
         });
     });
