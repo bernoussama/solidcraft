@@ -5776,6 +5776,7 @@ dependencies = [
  "solidcraft-engine",
  "solidcraft-gpu",
  "solidcraft-look",
+ "solidcraft-mcp",
  "solidcraft-space-mouse",
  "solidcraft-theme",
  "solidcraft-ui-egui",
@@ -6036,6 +6037,7 @@ dependencies = [
 name = "solidcraft-mcp"
 version = "0.43.0"
 dependencies = [
+ "getrandom 0.3.4",
  "image",
  "serde_json",
  "solidcraft-control",
