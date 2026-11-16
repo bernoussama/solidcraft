@@ -203,9 +203,7 @@ fn mcp_http_section(app: &mut SolveApp, ui: &mut egui::Ui, labels: f32) {
             });
             ui_kit::row(ui, app.tr("settings.mcp_http_port"), |ui| {
                 let enabled = app.preferences.mcp_http_enabled;
-                let port = ui
-                    .add_enabled_ui(enabled, |ui| ui_kit::settings_number(ui, &mut app.preferences.mcp_http_port, 1..=65535, 1.0))
-                    .inner;
+                let port = ui.add_enabled_ui(enabled, |ui| ui_kit::settings_number(ui, &mut app.preferences.mcp_http_port, 1..=65535, 1.0)).inner;
                 crate::scenario::publish_rect("prefs:mcp_http_port", port.rect);
             });
         });
