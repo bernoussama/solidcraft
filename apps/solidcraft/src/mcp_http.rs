@@ -7,6 +7,7 @@
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 
+use solidcraft_control::ControlRequest;
 use solidcraft_mcp::{HttpHandle, HttpServer, Remote, agent_scope, client_config_json, new_token, write_token_file};
 use solidcraft_ui_egui::{McpHttpStatus, SolveApp};
 

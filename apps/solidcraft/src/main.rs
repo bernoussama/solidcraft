@@ -49,6 +49,8 @@ mod startup;
 #[cfg(any(target_os = "windows", test))]
 mod window_fit;
 
+use std::sync::{Arc, Mutex};
+
 use solidcraft_engine::{Session, io};
 use solidcraft_ui_egui::{McpHttpStatus, Services, SolveApp};
 
